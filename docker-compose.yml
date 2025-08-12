@@ -1,16 +1,51 @@
 version: "3.9"
+
 services:
+  db:
+    image: mysql:8.0
+    container_name: tickets-mysql
+    environment:
+      MYSQL_DATABASE: tickets
+      MYSQL_USER: tickets
+      MYSQL_PASSWORD: tickets
+      MYSQL_ROOT_PASSWORD: root
+    command: ["--default-authentication-plugin=mysql_native_password"]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -ptickets --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "33306:3306"    # host:container (avoid conflicts)
+    volumes:
+      - mysql_data:/var/lib/mysql
+
   backend:
     build:
       context: ..
       dockerfile: ticket-infra/Dockerfile.backend
     container_name: tickets-backend
-    ports: ["8080:8080"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/tickets?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: tickets
+      SPRING_DATASOURCE_PASSWORD: tickets
+      # Optional if you need it:
+      # SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    ports:
+      - "19080:8080"    # backend exposed on host 19080
 
   frontend:
     build:
       context: ..
       dockerfile: ticket-infra/Dockerfile.frontend
     container_name: tickets-frontend
-    depends_on: [backend]
-    ports: ["8081:80"]
+    depends_on:
+      - backend
+    ports:
+      - "19081:80"      # frontend exposed on host 19081
+
+volumes:
+  mysql_data:

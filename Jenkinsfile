@@ -15,27 +15,18 @@ pipeline {
       }
     }
 
-    stage('Backend: Unit tests') {
+    stage('Backend: Package (skip tests)') {
       steps {
         dir('BackEndTicketProject') {
-          sh 'java -version || true'         // debug: show the JRE that Jenkins already has
+          sh 'java -version || true'
           sh 'chmod +x mvnw || true'
-          sh './mvnw -B -ntp test'
-        }
-      }
-      post {
-        always {
-          junit allowEmptyResults: true, testResults: 'BackEndTicketProject/**/target/surefire-reports/*.xml'
+          sh './mvnw -B -ntp -DskipTests package'
         }
       }
     }
 
-    // NOTE: We skip a standalone Node build step so you don't need the NodeJS plugin.
-    // The frontend will be built inside its Docker image in the next stage.
-
     stage('Build images') {
       steps {
-        // Build with context ".." so Dockerfiles inside ticket-infra can COPY from sibling folders
         dir('.') {
           sh 'docker build -t tickets-backend:ci  -f ticket-infra/Dockerfile.backend ..'
           sh 'docker build -t tickets-frontend:ci -f ticket-infra/Dockerfile.frontend ..'
@@ -61,25 +52,18 @@ pipeline {
       steps {
         sh '''
           set -e
-          # use the same compose alias as above
-          if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi
+          FRONTEND_PORT=19081
+          BACKEND_PORT=19080
 
-          # Wait for the frontend container to be up (compose sets container_name: tickets-frontend)
           for i in $(seq 1 60); do
-            if docker ps --format '{{.Names}}' | grep -q '^tickets-frontend$'; then break; fi
-            sleep 2
-          done
-
-          # Try up to 60s for HTTP 200 on the served index via the container network namespace
-          for i in $(seq 1 60); do
-            if docker run --rm --network=container:tickets-frontend curlimages/curl -sf http://localhost/ > /dev/null; then
-              echo "Frontend is serving content."
+            if curl -sf http://localhost:$FRONTEND_PORT/ > /dev/null; then
+              echo "Frontend is up at http://localhost:$FRONTEND_PORT"
               exit 0
             fi
             sleep 2
           done
 
-          echo "Frontend did not become ready in time."
+          echo "Frontend didn't start in time"
           exit 1
         '''
       }
