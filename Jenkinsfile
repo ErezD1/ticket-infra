@@ -27,12 +27,13 @@ pipeline {
 
     stage('Build images') {
       steps {
-        dir('.') {
-          sh 'docker build -t tickets-backend:ci  -f ticket-infra/Dockerfile.backend ..'
-          sh 'docker build -t tickets-frontend:ci -f ticket-infra/Dockerfile.frontend ..'
+        dir('ticket-infra') {
+          sh 'docker build -t tickets-backend:ci  -f Dockerfile.backend ..'
+          sh 'docker build -t tickets-frontend:ci -f Dockerfile.frontend ..'
         }
       }
     }
+
 
     stage('Spin up test env') {
       steps {
