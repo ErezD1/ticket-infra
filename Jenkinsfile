@@ -1,4 +1,3 @@
-// ticket-infra/Jenkinsfile
 pipeline {
   agent any
   options { timestamps(); ansiColor('xterm') }
@@ -6,6 +5,8 @@ pipeline {
   environment {
     FRONTEND_REPO = 'https://github.com/ErezD1/FrontEndTicketProject.git'
     BACKEND_REPO  = 'https://github.com/ErezD1/BackEndTicketProject.git'
+    // Make sure you have Jenkins tools named exactly like below (Manage Jenkins > Tools)
+    // JDK tool name: jdk-21, NodeJS tool name: node-20
   }
 
   stages {
@@ -17,12 +18,12 @@ pipeline {
     }
 
     stage('Backend: Unit tests') {
+      tools { jdk 'jdk-21' }
       steps {
-        // Run tests in a Maven container; results land in the mounted folder
-        sh '''
-          docker run --rm -v "$PWD/BackEndTicketProject":/app -w /app \
-            maven:3.9-eclipse-temurin-21 mvn -B -ntp test
-        '''
+        dir('BackEndTicketProject') {
+          sh 'chmod +x mvnw || true'
+          sh './mvnw -B -ntp test'
+        }
       }
       post {
         always {
@@ -31,12 +32,13 @@ pipeline {
       }
     }
 
-    stage('Frontend: CI build (optional tests)') {
+    stage('Frontend: CI build') {
+      tools { nodejs 'node-20' }
       steps {
-        sh '''
-          docker run --rm -v "$PWD/FrontEndTicketProject":/web -w /web node:20 \
-            sh -lc "npm ci && npm run build"
-        '''
+        dir('FrontEndTicketProject') {
+          sh 'npm ci'
+          sh 'npm run build'
+        }
       }
       post {
         always {
@@ -47,9 +49,10 @@ pipeline {
 
     stage('Build images') {
       steps {
-        dir('ticket-infra') {
-          sh 'docker build -t tickets-backend:ci -f Dockerfile.backend ..'
-          sh 'docker build -t tickets-frontend:ci -f Dockerfile.frontend ..'
+        // Build with context ".." so Dockerfiles can COPY from the sibling code folders
+        dir('.') {
+          sh 'docker build -t tickets-backend:ci  -f ticket-infra/Dockerfile.backend ..'
+          sh 'docker build -t tickets-frontend:ci -f ticket-infra/Dockerfile.frontend ..'
         }
       }
     }
@@ -57,24 +60,42 @@ pipeline {
     stage('Spin up test env') {
       steps {
         dir('ticket-infra') {
-          sh 'docker compose down -v || true'
-          sh 'docker compose up -d --build'
+          sh '''
+            set -e
+            if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi
+            $DC down -v || true
+            $DC up -d --build
+            $DC ps
+          '''
         }
       }
     }
 
     stage('Smoke check') {
       steps {
-        // Check frontend is serving and proxy works
+        // No curl needed on the agent; use a tiny curl container against the frontend container
         sh '''
+          set -e
+          if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi
+
+          # Wait for frontend container name from compose (expects container_name: tickets-frontend in compose)
           for i in $(seq 1 60); do
-            if curl -sf http://localhost:8081/ > /dev/null; then exit 0; fi
+            if docker ps --format '{{.Names}}' | grep -q '^tickets-frontend$'; then break; fi
             sleep 2
           done
-          echo "Frontend not responding in time"; exit 1
+
+          # Try up to 60s for HTTP 200 on the served index
+          for i in $(seq 1 60); do
+            if docker run --rm --network=container:tickets-frontend curlimages/curl -sf http://localhost/ > /dev/null; then
+              echo "Frontend is serving content."
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Frontend did not become ready in time."
+          exit 1
         '''
-        // Optional API poke through the proxy (adjust path if needed)
-        sh 'curl -sf http://localhost:8081/api || true'
       }
     }
   }
@@ -82,12 +103,16 @@ pipeline {
   post {
     always {
       dir('ticket-infra') {
-        sh 'docker compose ps || true'
+        sh '''
+          if docker compose version >/dev/null 2>&1; then docker compose ps || true; else docker-compose ps || true; fi
+        '''
       }
     }
     cleanup {
       dir('ticket-infra') {
-        sh 'docker compose down -v || true'
+        sh '''
+          if docker compose version >/dev/null 2>&1; then docker compose down -v || true; else docker-compose down -v || true; fi
+        '''
       }
     }
   }
