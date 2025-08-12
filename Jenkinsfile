@@ -5,8 +5,6 @@ pipeline {
   environment {
     FRONTEND_REPO = 'https://github.com/ErezD1/FrontEndTicketProject.git'
     BACKEND_REPO  = 'https://github.com/ErezD1/BackEndTicketProject.git'
-    // Make sure you have Jenkins tools named exactly like below (Manage Jenkins > Tools)
-    // JDK tool name: jdk-21, NodeJS tool name: node-20
   }
 
   stages {
@@ -18,9 +16,9 @@ pipeline {
     }
 
     stage('Backend: Unit tests') {
-      tools { jdk 'jdk-21' }
       steps {
         dir('BackEndTicketProject') {
+          sh 'java -version || true'         // debug: show the JRE that Jenkins already has
           sh 'chmod +x mvnw || true'
           sh './mvnw -B -ntp test'
         }
@@ -32,24 +30,12 @@ pipeline {
       }
     }
 
-    stage('Frontend: CI build') {
-      tools { nodejs 'node-20' }
-      steps {
-        dir('FrontEndTicketProject') {
-          sh 'npm ci'
-          sh 'npm run build'
-        }
-      }
-      post {
-        always {
-          archiveArtifacts artifacts: 'FrontEndTicketProject/dist/**/*', allowEmptyArchive: true
-        }
-      }
-    }
+    // NOTE: We skip a standalone Node build step so you don't need the NodeJS plugin.
+    // The frontend will be built inside its Docker image in the next stage.
 
     stage('Build images') {
       steps {
-        // Build with context ".." so Dockerfiles can COPY from the sibling code folders
+        // Build with context ".." so Dockerfiles inside ticket-infra can COPY from sibling folders
         dir('.') {
           sh 'docker build -t tickets-backend:ci  -f ticket-infra/Dockerfile.backend ..'
           sh 'docker build -t tickets-frontend:ci -f ticket-infra/Dockerfile.frontend ..'
@@ -73,18 +59,18 @@ pipeline {
 
     stage('Smoke check') {
       steps {
-        // No curl needed on the agent; use a tiny curl container against the frontend container
         sh '''
           set -e
+          # use the same compose alias as above
           if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi
 
-          # Wait for frontend container name from compose (expects container_name: tickets-frontend in compose)
+          # Wait for the frontend container to be up (compose sets container_name: tickets-frontend)
           for i in $(seq 1 60); do
             if docker ps --format '{{.Names}}' | grep -q '^tickets-frontend$'; then break; fi
             sleep 2
           done
 
-          # Try up to 60s for HTTP 200 on the served index
+          # Try up to 60s for HTTP 200 on the served index via the container network namespace
           for i in $(seq 1 60); do
             if docker run --rm --network=container:tickets-frontend curlimages/curl -sf http://localhost/ > /dev/null; then
               echo "Frontend is serving content."
@@ -103,16 +89,12 @@ pipeline {
   post {
     always {
       dir('ticket-infra') {
-        sh '''
-          if docker compose version >/dev/null 2>&1; then docker compose ps || true; else docker-compose ps || true; fi
-        '''
+        sh 'if docker compose version >/dev/null 2>&1; then docker compose ps || true; else docker-compose ps || true; fi'
       }
     }
     cleanup {
       dir('ticket-infra') {
-        sh '''
-          if docker compose version >/dev/null 2>&1; then docker compose down -v || true; else docker-compose down -v || true; fi
-        '''
+        sh 'if docker compose version >/dev/null 2>&1; then docker compose down -v || true; else docker-compose down -v || true; fi'
       }
     }
   }
