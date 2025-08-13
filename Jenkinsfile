@@ -1,10 +1,16 @@
 pipeline {
   agent any
-  options { timestamps(); ansiColor('xterm') }
+  options {
+    timestamps()
+    ansiColor('xterm')
+    skipDefaultCheckout(true) // we do our own checkouts below
+  }
 
   environment {
     FRONTEND_REPO = 'https://github.com/ErezD1/FrontEndTicketProject.git'
     BACKEND_REPO  = 'https://github.com/ErezD1/BackEndTicketProject.git'
+    FRONTEND_PORT = '19081'
+    BACKEND_PORT  = '19080'
   }
 
   stages {
@@ -34,7 +40,6 @@ pipeline {
       }
     }
 
-
     stage('Spin up test env') {
       steps {
         dir('ticket-infra') {
@@ -53,17 +58,13 @@ pipeline {
       steps {
         sh '''
           set -e
-          FRONTEND_PORT=19081
-          BACKEND_PORT=19080
-
           for i in $(seq 1 60); do
-            if curl -sf http://localhost:$FRONTEND_PORT/ > /dev/null; then
-              echo "Frontend is up at http://localhost:$FRONTEND_PORT"
+            if curl -sf "http://localhost:${FRONTEND_PORT}/" > /dev/null; then
+              echo "Frontend is up at http://localhost:${FRONTEND_PORT}"
               exit 0
             fi
             sleep 2
           done
-
           echo "Frontend didn't start in time"
           exit 1
         '''
@@ -76,6 +77,7 @@ pipeline {
       dir('ticket-infra') {
         sh 'if docker compose version >/dev/null 2>&1; then docker compose ps || true; else docker-compose ps || true; fi'
       }
+      echo "Try: http://localhost:${FRONTEND_PORT}  (frontend),  http://localhost:${BACKEND_PORT}  (backend)"
     }
     cleanup {
       dir('ticket-infra') {
