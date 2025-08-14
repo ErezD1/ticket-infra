@@ -1,26 +1,15 @@
-# ===== build (Node) =====
 FROM node:20-alpine AS build
 WORKDIR /app
-
-# Install deps
 COPY FrontEndTicketProject/package*.json ./
 RUN npm ci
-
-# Bring in sources & build
 COPY FrontEndTicketProject/ ./
-
-# If your build currently fails on TypeScript checks, uncomment the next line
-# to bypass type-checking (Vite build without tsc):
+# If TypeScript errors block the build, uncomment next line to skip type checking:
 # RUN npm pkg set scripts.build="vite build"
+RUN npm run build
+# normalize output to a single folder we can copy
+RUN if [ -d dist ]; then mv dist /app/_out; elif [ -d build ]; then mv build /app/_out; else echo "No dist/ or build/ found" && ls -la && exit 1; fi
 
-RUN npm run build || (echo "If TypeScript errors occur, uncomment the vite-only build line above" && exit 1)
-
-# Detect output dir: prefer dist (Vite), fall back to build (CRA)
-RUN if [ -d dist ]; then mv dist /app/_out; elif [ -d build ]; then mv build /app/_out; else echo "No dist/ or build/ found"; ls -la; exit 1; fi
-
-# ===== serve with nginx =====
 FROM nginx:alpine
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY ticket-infra/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/_out /usr/share/nginx/html
 EXPOSE 80
-CMD ["nginx","-g","daemon off;"]

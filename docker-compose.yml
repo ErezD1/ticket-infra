@@ -1,22 +1,22 @@
 services:
   backend:
     build:
-      context: .
-      dockerfile: Dockerfile.backend
+      context: ..
+      dockerfile: ticket-infra/Dockerfile.backend
     image: tickets-backend:ci
     container_name: tickets-backend
     environment:
-      - SERVER_PORT=${APP_PORT:-8090}
+      - SERVER_PORT=8090          # Spring inside container
     ports:
-      - "${BACKEND_PORT:-19080}:${APP_PORT:-8090}"
+      - "19080:8090"              # host:container (avoids Jenkins 8080)
 
   frontend:
     build:
-      context: .
-      dockerfile: Dockerfile.frontend
+      context: ..
+      dockerfile: ticket-infra/Dockerfile.frontend
     image: tickets-frontend:ci
     container_name: tickets-frontend
     depends_on:
       - backend
     ports:
-      - "${FRONTEND_PORT:-19081}:80"
+      - "19081:80"                # nginx listens on 80 in-container
