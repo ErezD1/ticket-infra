@@ -6,7 +6,7 @@ services:
       dockerfile: ticket-infra/Dockerfile.backend
     container_name: tickets-backend
     ports:
-      - "19080:8080"
+      - "19080:8090"
 
   frontend:
     build:
@@ -16,4 +16,4 @@ services:
     depends_on:
       - backend
     ports:
-      - "19081:80"
+      - "19081:8100"
