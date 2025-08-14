@@ -2,23 +2,20 @@
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /src
 
-# Copy project (combined repo: pom.xml + src/ are at root)
-COPY pom.xml .
-COPY src ./src
+# Copy the backend project from the sibling folder
+COPY BackEndTicketProject/pom.xml .
+COPY BackEndTicketProject/src ./src
 
-# Build fat jar (tests already skipped in Jenkins)
+# Build fat jar (we skip tests here too)
 RUN mvn -B -ntp -DskipTests package
 
 # ===== runtime =====
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-
-# Copy the built jar (adjust name if your artifactId/version differ)
-# You can also use a wildcard to avoid hardcoding the exact name:
+# Copy the artifact (use wildcard to avoid hardcoding the exact name)
 COPY --from=build /src/target/*SNAPSHOT.jar /app/app.jar
 
-# Run on 8090 inside the container (published to 19080 on host)
+# Run on 8090 inside the container; published to 19080 on host
 ENV SERVER_PORT=8090
 EXPOSE 8090
-
 ENTRYPOINT ["java","-jar","/app/app.jar"]

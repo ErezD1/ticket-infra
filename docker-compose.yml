@@ -7,20 +7,16 @@ services:
     container_name: tickets-backend
     environment:
       - SERVER_PORT=${APP_PORT:-8090}
-    # host:container
     ports:
       - "${BACKEND_PORT:-19080}:${APP_PORT:-8090}"
-
 
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.frontend
-      args:
-        FRONTEND_DIR: ${FRONTEND_DIR:-frontend}
     image: tickets-frontend:ci
     container_name: tickets-frontend
     depends_on:
       - backend
     ports:
-      - "${FRONTEND_PORT:-19081}:80"   # nginx listens on 80 in-container
+      - "${FRONTEND_PORT:-19081}:80"
