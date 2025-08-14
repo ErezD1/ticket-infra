@@ -1,19 +1,22 @@
-version: "3.9"
 services:
   backend:
     build:
-      context: ..
-      dockerfile: ticket-infra/Dockerfile.backend
+      context: .
+      dockerfile: Dockerfile.backend
+    image: tickets-backend:ci
     container_name: tickets-backend
+    environment:
+      - SERVER_PORT=8090     # make Spring Boot listen on 8090
     ports:
-      - "19080:8090"
+      - "19080:8090"         # host:container (keeps Jenkins 8080 free)
 
   frontend:
     build:
-      context: ..
-      dockerfile: ticket-infra/Dockerfile.frontend
+      context: .
+      dockerfile: Dockerfile.frontend
+    image: tickets-frontend:ci
     container_name: tickets-frontend
     depends_on:
       - backend
     ports:
-      - "19081:8100"
+      - "19081:80"           # nginx listens on 80 inside the container

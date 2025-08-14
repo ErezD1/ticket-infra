@@ -5,8 +5,8 @@ pipeline {
   environment {
     FRONTEND_REPO = 'https://github.com/ErezD1/FrontEndTicketProject.git'
     BACKEND_REPO  = 'https://github.com/ErezD1/BackEndTicketProject.git'
-    BACKEND_PORT  = '19080'
-    FRONTEND_PORT = '19081'
+    BACKEND_PORT  = '19080'   // host
+    FRONTEND_PORT = '19081'   // host
   }
 
   stages {
@@ -29,7 +29,7 @@ pipeline {
 
     stage('Build images') {
       steps {
-        // Build from REPO ROOT (context ".") so COPY BackEndTicketProject/... works
+        // Build from REPO ROOT so Dockerfiles can COPY the sibling project folders
         sh 'docker build -t tickets-backend:ci  -f Dockerfile.backend .'
         sh 'docker build -t tickets-frontend:ci -f Dockerfile.frontend .'
       }
