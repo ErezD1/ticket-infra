@@ -1,18 +1,17 @@
+version: "3.9"
 services:
   backend:
     build:
-      context: .
-      dockerfile: Dockerfile.backend
-    image: tickets-backend:ci
+      context: ..
+      dockerfile: ticket-infra/Dockerfile.backend
     container_name: tickets-backend
     ports:
       - "19080:8080"
 
   frontend:
     build:
-      context: .
-      dockerfile: Dockerfile.frontend
-    image: tickets-frontend:ci
+      context: ..
+      dockerfile: ticket-infra/Dockerfile.frontend
     container_name: tickets-frontend
     depends_on:
       - backend
