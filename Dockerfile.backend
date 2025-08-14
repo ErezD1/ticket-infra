@@ -1,16 +1,19 @@
-# ---- build phase ----
+# Stage 1: Build the backend JAR
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /src
 
-# COPY using repo-root context (that’s why Jenkins builds with "..")
-COPY BackEndTicketProject/pom.xml .
-COPY BackEndTicketProject/src ./src
+# Copy pom.xml and source from the actual backend folder (one level up)
+COPY ../BackEndTicketProject/pom.xml .
+COPY ../BackEndTicketProject/src ./src
 
-RUN mvn -B -DskipTests package
+RUN mvn -B -ntp -DskipTests package
 
-# ---- runtime phase ----
+# Stage 2: Runtime image
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-COPY --from=build /src/target/*SNAPSHOT.jar app.jar
-EXPOSE 8080
-ENTRYPOINT ["java","-jar","/app/app.jar"]
+
+# Copy the built jar from the build stage
+COPY --from=build /src/target/*.jar app.jar
+
+# Run the Spring Boot application
+ENTRYPOINT ["java", "-jar", "app.jar"]
