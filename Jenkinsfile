@@ -1,53 +1,42 @@
 pipeline {
   agent any
-  options { timestamps(); ansiColor('xterm') }
+  options { timestamps(); ansiColor('xterm'); skipDefaultCheckout(false) }
 
   environment {
-    // Adjust these if your folder names are different:
-    BACKEND_DIR  = 'backend'         // e.g. 'server', 'spring', etc.
-    FRONTEND_DIR = 'frontend'        // e.g. 'ui', 'app', etc.
-
-    // Host ports (keep Jenkins’ 8080 free)
-    BACKEND_PORT  = '19080'
-    FRONTEND_PORT = '19081'
+    // Host port to avoid Jenkins' 8080
+    BACKEND_PORT = '19080'
+    // In-container port Spring Boot will listen on
+    APP_PORT     = '8090'
   }
 
   stages {
     stage('Show layout (debug)') {
       steps {
         sh 'pwd && ls -la'
-        sh 'echo "Backend dir: $BACKEND_DIR  | Frontend dir: $FRONTEND_DIR"'
-        sh 'ls -la "$BACKEND_DIR" || true'
-        sh 'ls -la "$FRONTEND_DIR" || true'
+        sh 'java -version || true'
       }
     }
 
-    // Optional: build the backend once outside Docker just to fail fast on obvious issues
     stage('Backend: package (skip tests)') {
       steps {
-        dir("${env.BACKEND_DIR}") {
-          sh 'chmod +x mvnw || true'
-          sh './mvnw -B -ntp -DskipTests package || true'
-        }
+        sh 'chmod +x mvnw || true'
+        sh './mvnw -B -ntp -DskipTests package'
       }
     }
 
-    stage('Build images') {
+    stage('Build Docker image') {
       steps {
-        // Pass the subdir names as build args so Dockerfiles can COPY correctly
-        sh 'docker build -t tickets-backend:ci  --build-arg BACKEND_DIR="$BACKEND_DIR"  -f Dockerfile.backend .'
-        sh 'docker build -t tickets-frontend:ci --build-arg FRONTEND_DIR="$FRONTEND_DIR" -f Dockerfile.frontend .'
+        sh 'docker build -t tickets-backend:ci -f Dockerfile.backend .'
       }
     }
 
-    stage('Compose up') {
+    stage('Run with Compose') {
       steps {
         sh '''
           set -e
-          export BACKEND_DIR FRONTEND_DIR BACKEND_PORT FRONTEND_PORT
           if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi
           $DC down -v || true
-          $DC up -d --build
+          BACKEND_PORT=''' + '${BACKEND_PORT}' + ''' APP_PORT=''' + '${APP_PORT}' + ''' $DC up -d --build
           $DC ps
         '''
       }
@@ -57,14 +46,15 @@ pipeline {
       steps {
         sh '''
           set -e
+          echo "Waiting for app on http://localhost:${BACKEND_PORT} ..."
           for i in $(seq 1 60); do
-            if curl -sf "http://localhost:${FRONTEND_PORT}/" > /dev/null; then
-              echo "✅ Frontend is up: http://localhost:${FRONTEND_PORT}"
+            if curl -sf "http://localhost:${BACKEND_PORT}/" > /dev/null; then
+              echo "✅ App is up: http://localhost:${BACKEND_PORT}"
               exit 0
             fi
             sleep 2
           done
-          echo "❌ Frontend did not start in time"
+          echo "❌ App did not become ready in time"
           exit 1
         '''
       }
@@ -74,7 +64,7 @@ pipeline {
   post {
     always {
       sh 'if docker compose version >/dev/null 2>&1; then docker compose ps || true; else docker-compose ps || true; fi'
-      echo "Open: http://localhost:${FRONTEND_PORT} (frontend) | http://localhost:${BACKEND_PORT} (backend)"
+      echo "Open:  http://localhost:${BACKEND_PORT}"
     }
     cleanup {
       sh 'if docker compose version >/dev/null 2>&1; then docker compose down -v || true; else docker-compose down -v || true; fi'

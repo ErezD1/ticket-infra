@@ -3,14 +3,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
-      args:
-        BACKEND_DIR: ${BACKEND_DIR:-backend}
     image: tickets-backend:ci
     container_name: tickets-backend
     environment:
-      - SERVER_PORT=8090          # Spring Boot will listen on 8090
+      - SERVER_PORT=${APP_PORT:-8090}
+    # host:container
     ports:
-      - "${BACKEND_PORT:-19080}:8090"
+      - "${BACKEND_PORT:-19080}:${APP_PORT:-8090}"
+
 
   frontend:
     build:
