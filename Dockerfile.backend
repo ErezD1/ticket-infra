@@ -1,22 +1,20 @@
-# ---- build stage ----
+# ===== build stage =====
 FROM maven:3.9-eclipse-temurin-21 AS build
+ARG BACKEND_DIR=backend
 WORKDIR /src
 
-# Paths are relative to build context "." (repo root)
-COPY BackEndTicketProject/pom.xml .
-COPY BackEndTicketProject/src ./src
+# Copy backend sources from the selected subdir
+COPY ${BACKEND_DIR}/pom.xml .
+COPY ${BACKEND_DIR}/src ./src
 
 RUN mvn -B -ntp -DskipTests package
 
-# ---- runtime ----
+# ===== runtime =====
 FROM eclipse-temurin:21-jre
 WORKDIR /app
+COPY --from=build /src/target/*SNAPSHOT.jar /app/app.jar
 
-# Copy the real artifact name your build produces
-COPY --from=build /src/target/BackTicketProject-0.0.1-SNAPSHOT.jar /app/app.jar
-
-# honor SERVER_PORT (compose sets it to 8090)
+# Align with compose
 ENV SERVER_PORT=8090
 EXPOSE 8090
-
 ENTRYPOINT ["java","-jar","/app/app.jar"]
