@@ -1,47 +1,20 @@
-# compose v2 ignores "version", safe to omit
 services:
-  db:
-    image: mysql:8.0
-    container_name: tickets-mysql
-    environment:
-      MYSQL_DATABASE: tickets
-      MYSQL_USER: tickets
-      MYSQL_PASSWORD: tickets
-      MYSQL_ROOT_PASSWORD: root
-    command: ["--default-authentication-plugin=mysql_native_password"]
-    healthcheck:
-      test: ["CMD-SHELL","mysqladmin ping -h localhost -proot --silent"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-    ports:
-      - "33306:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
-
   backend:
     build:
       context: ..
-      dockerfile: ticket-infra/Dockerfile.backend
+      dockerfile: Dockerfile.backend
+    image: tickets-backend:ci
     container_name: tickets-backend
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/tickets?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      SPRING_DATASOURCE_USERNAME: tickets
-      SPRING_DATASOURCE_PASSWORD: tickets
     ports:
       - "19080:8080"
 
   frontend:
     build:
       context: ..
-      dockerfile: ticket-infra/Dockerfile.frontend
+      dockerfile: Dockerfile.frontend
+    image: tickets-frontend:ci
     container_name: tickets-frontend
-    depends_on: [backend]
+    depends_on:
+      - backend
     ports:
       - "19081:80"
-
-volumes:
-  mysql_data:
