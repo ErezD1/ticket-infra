@@ -1,19 +1,16 @@
-# Stage 1: Build the backend JAR
+# ---- build stage ----
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /src
 
-# Copy pom.xml and source from the actual backend folder (one level up)
-COPY ../BackEndTicketProject/pom.xml .
-COPY ../BackEndTicketProject/src ./src
+# These paths exist because build context is the repo root (.)
+COPY BackEndTicketProject/pom.xml .
+COPY BackEndTicketProject/src ./src
 
 RUN mvn -B -ntp -DskipTests package
 
-# Stage 2: Runtime image
+# ---- runtime ----
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-
-# Copy the built jar from the build stage
-COPY --from=build /src/target/*.jar app.jar
-
-# Run the Spring Boot application
-ENTRYPOINT ["java", "-jar", "app.jar"]
+COPY --from=build /src/target/*SNAPSHOT.jar /app/app.jar
+EXPOSE 8080
+ENTRYPOINT ["java","-jar","/app/app.jar"]
