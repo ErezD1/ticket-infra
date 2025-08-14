@@ -1,20 +1,16 @@
-# --- build stage ---
+# ---- build phase ----
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /src
 
-# Copy only backend sources (they are in the build context parent dir)
+# COPY using repo-root context (that’s why Jenkins builds with "..")
 COPY BackEndTicketProject/pom.xml .
 COPY BackEndTicketProject/src ./src
 
-# Build a fat jar (the project already uses spring-boot-maven-plugin)
 RUN mvn -B -DskipTests package
 
-# --- runtime stage ---
+# ---- runtime phase ----
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-
-# Copy the built jar from the previous stage
-COPY --from=build /src/target/*SNAPSHOT.jar /app/app.jar
-
+COPY --from=build /src/target/*SNAPSHOT.jar app.jar
 EXPOSE 8080
 ENTRYPOINT ["java","-jar","/app/app.jar"]

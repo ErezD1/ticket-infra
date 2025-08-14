@@ -5,10 +5,8 @@ pipeline {
   environment {
     FRONTEND_REPO = 'https://github.com/ErezD1/FrontEndTicketProject.git'
     BACKEND_REPO  = 'https://github.com/ErezD1/BackEndTicketProject.git'
-
-    // The ports we expose via docker-compose (avoid Jenkins’ 8080/8081)
-    BACKEND_PORT  = '19080'
     FRONTEND_PORT = '19081'
+    BACKEND_PORT  = '19080'
   }
 
   stages {
@@ -31,21 +29,25 @@ pipeline {
 
     stage('Build images') {
       steps {
-        // IMPORTANT: build context is ".." so Dockerfiles here can COPY the sibling project folders
-        sh 'docker build -t tickets-backend:ci  -f Dockerfile.backend ..'
-        sh 'docker build -t tickets-frontend:ci -f Dockerfile.frontend ..'
+        // IMPORTANT: run from ticket-infra with context ".."
+        dir('ticket-infra') {
+          sh 'docker build -t tickets-backend:ci  -f Dockerfile.backend ..'
+          sh 'docker build -t tickets-frontend:ci -f Dockerfile.frontend ..'
+        }
       }
     }
 
     stage('Spin up test env') {
       steps {
-        sh '''
-          set -e
-          if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi
-          $DC down -v || true
-          $DC up -d --build
-          $DC ps
-        '''
+        dir('ticket-infra') {
+          sh '''
+            set -e
+            if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi
+            $DC down -v || true
+            $DC up -d --build
+            $DC ps
+          '''
+        }
       }
     }
 
@@ -53,16 +55,14 @@ pipeline {
       steps {
         sh '''
           set -e
-          echo "Waiting for frontend on http://localhost:${FRONTEND_PORT} ..."
           for i in $(seq 1 60); do
             if curl -sf http://localhost:${FRONTEND_PORT}/ > /dev/null; then
-              echo "✅ Frontend is up: http://localhost:${FRONTEND_PORT}"
+              echo "Frontend is up at http://localhost:${FRONTEND_PORT}"
               exit 0
             fi
             sleep 2
           done
-          echo "❌ Frontend did not become ready in time"
-          exit 1
+          echo "Frontend didn't start in time"; exit 1
         '''
       }
     }

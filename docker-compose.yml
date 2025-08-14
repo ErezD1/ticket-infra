@@ -1,20 +1,19 @@
+version: "3.9"
 services:
   backend:
-    build:
-      context: ..
-      dockerfile: Dockerfile.backend
     image: tickets-backend:ci
     container_name: tickets-backend
-    ports:
-      - "19080:8080"
+    ports: ["19080:8080"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
 
   frontend:
-    build:
-      context: ..
-      dockerfile: Dockerfile.frontend
     image: tickets-frontend:ci
     container_name: tickets-frontend
     depends_on:
-      - backend
-    ports:
-      - "19081:80"
+      backend:
+        condition: service_started
+    ports: ["19081:80"]
